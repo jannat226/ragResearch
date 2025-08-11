@@ -3,6 +3,8 @@ import React, { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../App";
 import axios from "axios";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 const api = import.meta.env.VITE_API_URL;
 import {
@@ -14,6 +16,8 @@ import {
   Share2,
   Heart,
   MessageCircle,
+  Bot,
+  Send,
 } from "lucide-react";
 
 const BlogDetail = () => {
@@ -28,10 +32,30 @@ const BlogDetail = () => {
   const [commentContent, setCommentContent] = useState("");
   const [commentLoading, setCommentLoading] = useState(false);
   const [showComments, setShowComments] = useState(false);
+  const [related, setRelated] = useState([]);
+  // RAG Ask UI state
+  const [askQuestion, setAskQuestion] = useState("");
+  const [askLoading, setAskLoading] = useState(false);
+  const [askError, setAskError] = useState("");
+  const [askAnswer, setAskAnswer] = useState("");
+  const [askCitations, setAskCitations] = useState([]);
 
   useEffect(() => {
     fetchBlog();
   }, [id]);
+
+  useEffect(() => {
+    if (blog) fetchRelated();
+  }, [blog]);
+
+  const fetchRelated = async () => {
+    try {
+      const { data } = await axios.get(`${api}/api/blogs/${id}/related`);
+      setRelated(data);
+    } catch (e) {
+      // ignore
+    }
+  };
 
   const fetchBlog = async () => {
     try {
@@ -169,6 +193,29 @@ const BlogDetail = () => {
     });
   };
 
+  const handleAsk = async (e) => {
+    e?.preventDefault?.();
+    const q = askQuestion.trim();
+    if (!q) return;
+    try {
+      setAskLoading(true);
+      setAskError("");
+      setAskAnswer("");
+      setAskCitations([]);
+      const { data } = await axios.post(`${api}/api/ask`, {
+        question: q,
+        blogId: id,
+        k: 6,
+      });
+      setAskAnswer(data.answer || "");
+      setAskCitations(data.citations || []);
+    } catch (err) {
+      setAskError("Failed to get AI answer");
+    } finally {
+      setAskLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="blog-detail-container">
@@ -196,10 +243,19 @@ const BlogDetail = () => {
   }
 
   if (!blog) {
-    return null;
+    // Avoid rendering nothing; show a gentle fallback
+    return (
+      <div className="blog-detail-container">
+        <div className="loading-state">
+          <p>Loading…</p>
+        </div>
+      </div>
+    );
   }
 
-  const isAuthor = user && user.id === blog.author._id;
+  const authorId = String(blog.author?._id || blog.author || "");
+  const isAuthor = user && user.id && authorId && user.id === authorId;
+  const authorName = blog.author?.username || "Unknown";
 
   return (
     <div className="blog-detail-container fade-in">
@@ -262,7 +318,7 @@ const BlogDetail = () => {
                   <User size={20} />
                 </div>
                 <div className="author-details">
-                  <div className="author-name">{blog.author.username}</div>
+                  <div className="author-name">{authorName}</div>
                   <div className="publish-date">
                     <Calendar size={16} />
                     Published {formatDate(blog.createdAt)}
@@ -304,11 +360,12 @@ const BlogDetail = () => {
           </header>
 
           <div className="article-body">
-            {blog.content.split("\n").map((paragraph, index) => (
-              <p key={index} className="article-paragraph">
-                {paragraph}
-              </p>
-            ))}
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              className="markdown-body"
+            >
+              {blog.content}
+            </ReactMarkdown>
           </div>
 
           <footer className="article-footer">
@@ -317,10 +374,10 @@ const BlogDetail = () => {
                 <User size={24} />
               </div>
               <div className="author-card-info">
-                <h3>About {blog.author.username}</h3>
+                <h3>About {authorName}</h3>
                 <p>
-                  {blog.author.bio ||
-                    `${blog.author.username} is a researcher and writer sharing insights on various topics. Follow their work to stay updated on their latest posts.`}
+                  {blog.author?.bio ||
+                    `${authorName} is a researcher and writer sharing insights on various topics. Follow their work to stay updated on their latest posts.`}
                 </p>
               </div>
             </div>
@@ -403,6 +460,50 @@ const BlogDetail = () => {
           </div>
         </div>
       )}
+
+      {/* Ask AI about this post */}
+      <section className="ask-ai-section">
+        <h2 className="section-title">
+          <Bot size={18} /> Ask AI about this post
+        </h2>
+        <form onSubmit={handleAsk} className="ask-form">
+          <textarea
+            value={askQuestion}
+            onChange={(e) => setAskQuestion(e.target.value)}
+            placeholder="Ask a question about this article…"
+            rows={3}
+          />
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={askLoading}
+          >
+            <Send size={16} /> {askLoading ? "Asking…" : "Ask"}
+          </button>
+        </form>
+        {askError && <p className="error">{askError}</p>}
+        {askAnswer && (
+          <div className="ask-answer">
+            <p>{askAnswer}</p>
+          </div>
+        )}
+      </section>
+
+      {/* Related Articles Section */}
+      <section className="related-section">
+        <h2>Related articles</h2>
+        {related.length === 0 ? (
+          <p>No related articles yet.</p>
+        ) : (
+          <ul className="related-list">
+            {related.map((r) => (
+              <li key={r._id}>
+                <Link to={`/blogs/${r._id}`}>{r.title}</Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <style jsx>{`
         .blog-detail-container {
@@ -703,15 +804,44 @@ const BlogDetail = () => {
           line-height: 1.8;
         }
 
-        .article-paragraph {
-          font-size: 1.1rem;
-          color: #2d3748;
-          margin-bottom: 1.5rem;
-          text-align: justify;
+        .markdown-body {
+          color: #111827; /* Ensure visible on white */
+          font-size: 1.05rem;
+          line-height: 1.8;
+        }
+        .markdown-body h1,
+        .markdown-body h2,
+        .markdown-body h3 {
+          margin-top: 1.5rem;
+          margin-bottom: 0.75rem;
+          color: #111827; /* headings dark */
+        }
+        .markdown-body p {
+          margin-bottom: 1rem;
+          color: #111827; /* paragraphs dark */
+        }
+        .markdown-body a {
+          color: #4f46e5; /* indigo */
+          text-decoration: underline;
+        }
+        .markdown-body code {
+          background: #f3f4f6;
+          color: #0f172a;
+          padding: 2px 6px;
+          border-radius: 6px;
         }
 
-        .article-paragraph:empty {
-          margin-bottom: 0.75rem;
+        .markdown-body pre {
+          background: #0b1021;
+          color: #e5e7eb;
+          padding: 1rem;
+          border-radius: 12px;
+          overflow: auto;
+        }
+
+        .markdown-body ul {
+          padding-left: 1.25rem;
+          margin: 0.75rem 0;
         }
 
         .article-footer {
@@ -762,6 +892,83 @@ const BlogDetail = () => {
           border-radius: 50%;
           border-top-color: white;
           animation: spin 1s linear infinite;
+        }
+
+        /* Ask AI about this post */
+        .ask-ai-section {
+          margin-top: 2rem;
+          padding: 1rem;
+          border: 1px solid #e5e7eb;
+          border-radius: 12px;
+          background: #ffffff;
+          box-shadow: 0 10px 25px rgba(0, 0, 0, 0.04);
+        }
+
+        .ask-form {
+          display: grid;
+          gap: 0.75rem;
+        }
+
+        .ask-form textarea {
+          width: 100%;
+          padding: 0.75rem;
+          border: 1px solid #e5e7eb;
+          border-radius: 12px;
+          resize: vertical;
+        }
+
+        .ask-answer {
+          margin-top: 0.75rem;
+          background: #fafbff;
+          border: 1px solid #e5e7eb;
+          padding: 0.75rem;
+          border-radius: 12px;
+        }
+
+        .section-title {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+
+        /* Related Articles Section */
+        .related-section {
+          margin-top: 3rem;
+          padding: 2rem;
+          background: #f9fafb;
+          border-radius: 12px;
+          border: 1px solid #e2e8f0;
+        }
+
+        .related-section h2 {
+          font-size: 1.5rem;
+          font-weight: 700;
+          color: #2d3748;
+          margin-bottom: 1.5rem;
+        }
+
+        .related-list {
+          list-style: none;
+          padding: 0;
+          margin: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 0.75rem;
+        }
+
+        .related-list li {
+          margin: 0;
+        }
+
+        .related-list a {
+          color: #667eea;
+          text-decoration: none;
+          font-weight: 500;
+          transition: color 0.3s ease;
+        }
+
+        .related-list a:hover {
+          color: #4c51bf;
         }
 
         /* Responsive Design */

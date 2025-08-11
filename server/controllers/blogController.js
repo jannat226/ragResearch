@@ -1,5 +1,8 @@
 // server/controllers/blogController.js
 const Blog = require("../models/Blog");
+const { embedText } = require("../utils/embeddings");
+const { getDriver, dbSession } = require("../utils/neo4j");
+const { chunkText } = require("../utils/chunk");
 
 // Create a new blog post
 exports.createBlog = async (req, res) => {
@@ -14,6 +17,45 @@ exports.createBlog = async (req, res) => {
     }
     const blog = new Blog({ title, content, image, author });
     await blog.save();
+
+    // RAG: upsert BlogVec in Neo4j with embedding
+    try {
+      const text = `${title || ""}\n\n${content || ""}`;
+      const embedding = await embedText(text);
+      const session = dbSession("WRITE");
+      await session.run(
+        `MERGE (b:BlogVec {blogId: $id})
+         SET b.title = $title,
+             b.createdAt = datetime($createdAt),
+             b.embedding = $embedding`,
+        {
+          id: blog._id.toString(),
+          title: blog.title,
+          createdAt: blog.createdAt.toISOString(),
+          embedding,
+        }
+      );
+
+      // upsert chunks
+      const chunks = chunkText(text);
+      let idx = 0;
+      for (const c of chunks) {
+        const ce = await embedText(c);
+        await session.run(
+          `MERGE (ch:Chunk {blogId: $id, chunkIndex: $idx})
+           SET ch.text = $text, ch.embedding = $embedding
+           WITH ch
+           MATCH (b:BlogVec {blogId: $id})
+           MERGE (ch)-[:CHUNK_OF]->(b)`,
+          { id: blog._id.toString(), idx, text: c, embedding: ce }
+        );
+        idx += 1;
+      }
+      await session.close();
+    } catch (e) {
+      console.error("Failed to index blog/chunks in Neo4j:", e.message);
+    }
+
     res.status(201).json(blog);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -36,7 +78,7 @@ exports.getBlogs = async (req, res) => {
 exports.getBlogById = async (req, res) => {
   try {
     const blog = await Blog.findById(req.params.id)
-      .populate("author", "username email")
+      .populate("author", "username email bio")
       .populate("comments.author", "username email")
       .populate("likes", "username email");
     if (!blog) return res.status(404).json({ message: "Blog not found" });
@@ -69,6 +111,49 @@ exports.updateBlog = async (req, res) => {
     blog.image = image;
     blog.updatedAt = Date.now();
     await blog.save();
+
+    // RAG: update BlogVec embedding + chunks
+    try {
+      const text = `${blog.title || ""}\n\n${blog.content || ""}`;
+      const embedding = await embedText(text);
+      const session = dbSession("WRITE");
+      await session.run(
+        `MERGE (b:BlogVec {blogId: $id})
+         SET b.title = $title,
+             b.updatedAt = datetime($updatedAt),
+             b.embedding = $embedding`,
+        {
+          id: blog._id.toString(),
+          title: blog.title,
+          updatedAt: new Date().toISOString(),
+          embedding,
+        }
+      );
+
+      // Remove existing chunks
+      await session.run(`MATCH (c:Chunk {blogId: $id}) DETACH DELETE c`, {
+        id: blog._id.toString(),
+      });
+      // Recreate chunks
+      const chunks = chunkText(text);
+      let idx = 0;
+      for (const c of chunks) {
+        const ce = await embedText(c);
+        await session.run(
+          `MERGE (ch:Chunk {blogId: $id, chunkIndex: $idx})
+           SET ch.text = $text, ch.embedding = $embedding
+           WITH ch
+           MATCH (b:BlogVec {blogId: $id})
+           MERGE (ch)-[:CHUNK_OF]->(b)`,
+          { id: blog._id.toString(), idx, text: c, embedding: ce }
+        );
+        idx += 1;
+      }
+      await session.close();
+    } catch (e) {
+      console.error("Failed to update blog/chunks in Neo4j:", e.message);
+    }
+
     res.json(blog);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -84,6 +169,21 @@ exports.deleteBlog = async (req, res) => {
       return res.status(403).json({ message: "Unauthorized" });
     }
     await Blog.findByIdAndDelete(req.params.id);
+
+    // RAG: remove from Neo4j (blog + chunks)
+    try {
+      const session = dbSession("WRITE");
+      await session.run(`MATCH (c:Chunk {blogId: $id}) DETACH DELETE c`, {
+        id: req.params.id,
+      });
+      await session.run(`MATCH (b:BlogVec {blogId: $id}) DETACH DELETE b`, {
+        id: req.params.id,
+      });
+      await session.close();
+    } catch (e) {
+      console.error("Failed to remove blog from Neo4j:", e.message);
+    }
+
     res.json({ message: "Blog deleted" });
   } catch (err) {
     res.status(500).json({ message: err.message });
