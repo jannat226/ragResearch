@@ -147,6 +147,33 @@ const CreateBlog = ({ isEdit = false }) => {
     navigate("/blogs");
   };
 
+  const applyMarkdown = (syntax) => {
+    const textarea = document.getElementById("content");
+    if (!textarea) return;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const val = formData.content;
+    const before = val.substring(0, start);
+    const selected = val.substring(start, end) || "text";
+    const after = val.substring(end);
+
+    const map = {
+      bold: `**${selected}**`,
+      italic: `*${selected}*`,
+      h2: `## ${selected}`,
+      list: `- ${selected}`,
+      link: `[${selected}](https://)`,
+    };
+    const inserted = map[syntax] || selected;
+    const next = `${before}${inserted}${after}`;
+    setFormData((p) => ({ ...p, content: next }));
+    setTimeout(() => {
+      textarea.focus();
+      textarea.selectionStart = before.length;
+      textarea.selectionEnd = before.length + inserted.length;
+    }, 0);
+  };
+
   if (!user) {
     return (
       <div className="create-blog-container">
@@ -298,15 +325,34 @@ const CreateBlog = ({ isEdit = false }) => {
                 <label htmlFor="content" className="form-label">
                   Blog Content
                 </label>
+                <div className="md-toolbar">
+                  <button type="button" onClick={() => applyMarkdown("bold")}>
+                    <strong>B</strong>
+                  </button>
+                  <button type="button" onClick={() => applyMarkdown("italic")}>
+                    <em>I</em>
+                  </button>
+                  <button type="button" onClick={() => applyMarkdown("h2")}>
+                    H2
+                  </button>
+                  <button type="button" onClick={() => applyMarkdown("list")}>
+                    • List
+                  </button>
+                  <button type="button" onClick={() => applyMarkdown("link")}>
+                    Link
+                  </button>
+                  <span className="muted">Supports Markdown</span>
+                </div>
                 <textarea
                   id="content"
                   name="content"
                   value={formData.content}
                   onChange={handleChange}
-                  className="form-textarea"
-                  placeholder="Write your blog content here... Share your insights, experiences, or stories!"
+                  className="form-textarea editor-textarea"
+                  placeholder="Write your blog content here... Use Markdown or the toolbar to format."
                   required
-                  rows="12"
+                  rows="20"
+                  style={{ color: "#111827" }}
                 />
                 <div className="character-count">
                   {formData.content.length} characters
@@ -550,6 +596,31 @@ const CreateBlog = ({ isEdit = false }) => {
             gap: 0.5rem;
             text-align: center;
           }
+        }
+      `}</style>
+      <style jsx>{`
+        .md-toolbar {
+          display: flex;
+          gap: 0.5rem;
+          align-items: center;
+          margin-bottom: 0.5rem;
+        }
+        .md-toolbar button {
+          padding: 0.4rem 0.6rem;
+          border: 1px solid #e5e7eb;
+          background: white;
+          border-radius: 8px;
+          cursor: pointer;
+          color: #111827;
+        }
+        .md-toolbar button:hover {
+          background: #f3f4f6;
+        }
+        .editor-textarea {
+          min-height: 480px;
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+            monospace;
+          color: #111827;
         }
       `}</style>
     </div>

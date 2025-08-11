@@ -1,6 +1,6 @@
 // client/src/components/Navbar.jsx
 import React, { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../App";
 import {
   PenTool,
@@ -12,12 +12,16 @@ import {
   User,
   Menu,
   X,
+  Search as SearchIcon,
+  Bot,
 } from "lucide-react";
 
 const Navbar = () => {
   const { user, logout } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [search, setSearch] = useState("");
 
   const handleLogout = () => {
     logout();
@@ -29,6 +33,14 @@ const Navbar = () => {
   };
 
   const isActive = (path) => location.pathname === path;
+
+  const submitSearch = (e) => {
+    e.preventDefault();
+    if (search.trim()) {
+      navigate(`/search?q=${encodeURIComponent(search.trim())}`);
+      setIsMobileMenuOpen(false);
+    }
+  };
 
   return (
     <nav className="navbar">
@@ -45,12 +57,23 @@ const Navbar = () => {
 
         {/* Desktop Menu */}
         <div className="navbar-menu desktop-menu">
-          <NavLink to="/" icon={Home} active={isActive("/")}>
-            Home
-          </NavLink>
           <NavLink to="/blogs" icon={BookOpen} active={isActive("/blogs")}>
             Blogs
           </NavLink>
+          <NavLink to="/ask" icon={Bot} active={isActive("/ask")}>
+            Ask AI
+          </NavLink>
+
+          {/* Search */}
+          <form className="nav-search" onSubmit={submitSearch}>
+            <SearchIcon size={18} />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search articles..."
+              aria-label="Search articles"
+            />
+          </form>
 
           {user ? (
             <>
@@ -99,14 +122,16 @@ const Navbar = () => {
       {isMobileMenuOpen && (
         <div className="mobile-menu">
           <div className="mobile-menu-content">
-            <MobileNavLink
-              to="/"
-              icon={Home}
-              active={isActive("/")}
-              onClick={() => setIsMobileMenuOpen(false)}
-            >
-              Home
-            </MobileNavLink>
+            <form className="nav-search mobile" onSubmit={submitSearch}>
+              <SearchIcon size={18} />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search articles..."
+                aria-label="Search articles"
+              />
+            </form>
+            {/* Removed Home link; logo is Home across breakpoints */}
             <MobileNavLink
               to="/blogs"
               icon={BookOpen}
@@ -114,6 +139,14 @@ const Navbar = () => {
               onClick={() => setIsMobileMenuOpen(false)}
             >
               Blogs
+            </MobileNavLink>
+            <MobileNavLink
+              to="/ask"
+              icon={Bot}
+              active={isActive("/ask")}
+              onClick={() => setIsMobileMenuOpen(false)}
+            >
+              Ask AI
             </MobileNavLink>
 
             {user ? (
@@ -292,6 +325,24 @@ const Navbar = () => {
           gap: 0.5rem;
           color: #667eea;
           font-weight: 600;
+        }
+
+        .nav-search {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.25rem 0.75rem;
+          border: 1px solid #e5e7eb;
+          border-radius: 9999px;
+          background: #fff;
+        }
+        .nav-search input {
+          border: none;
+          outline: none;
+          width: 200px;
+        }
+        .nav-search.mobile {
+          width: 100%;
         }
 
         @media (max-width: 768px) {

@@ -16,6 +16,8 @@ import Register from "./pages/Register";
 import BlogList from "./pages/BlogList";
 import BlogDetail from "./pages/BlogDetail";
 import CreateBlog from "./pages/CreateBlog";
+import SearchResults from "./pages/SearchResults";
+import AskAI from "./pages/AskAI";
 import "./App.css";
 
 // Create Auth Context
@@ -91,6 +93,8 @@ function App() {
               />
               <Route path="/blogs" element={<BlogList />} />
               <Route path="/blogs/:id" element={<BlogDetail />} />
+              <Route path="/search" element={<SearchResults />} />
+              <Route path="/ask" element={<AskAI />} />
               <Route
                 path="/blogs/:id/edit"
                 element={
