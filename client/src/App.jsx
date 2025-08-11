@@ -33,7 +33,8 @@ export const useAuth = () => {
 };
 
 // Set up axios defaults
-axios.defaults.baseURL = "http://localhost:8000";
+const apiBase = import.meta.env.VITE_API_URL || ""; // empty = same-origin
+axios.defaults.baseURL = apiBase;
 
 function App() {
   const [user, setUser] = useState(null);
