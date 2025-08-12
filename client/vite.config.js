@@ -5,10 +5,18 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   plugins: [react()],
   build: {
+    chunkSizeWarningLimit: 1000, // Increase warning limit to 1MB
     rollupOptions: {
       external: [],
       output: {
-        manualChunks: undefined,
+        manualChunks: {
+          // Split vendor chunks for better caching
+          react: ['react', 'react-dom'],
+          router: ['react-router-dom'],
+          ui: ['lucide-react'],
+          markdown: ['react-markdown', 'remark-gfm'],
+          http: ['axios']
+        },
       },
     },
     commonjsOptions: {
