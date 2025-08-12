@@ -32,7 +32,7 @@ const Login = () => {
     setError("");
 
     try {
-      const response = await axios.post(`${api}/api/auth/login`, formData);
+      const response = await axios.post("/api/auth/login", formData);
       login(response.data.user, response.data.token);
     } catch (err) {
       setError(

@@ -21,7 +21,7 @@ export default function AskAI() {
       setError("");
       setAnswer("");
       setSources([]);
-      const { data } = await axios.post(`${api}/api/ask`, {
+      const { data } = await axios.post("/api/ask", {
         question: q,
         k: 8,
       });
