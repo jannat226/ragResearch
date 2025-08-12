@@ -3,12 +3,8 @@
   "version": "1.0.0",
   "description": "RAG-powered research blogging platform",
   "scripts": {
-    "build": "cd client && npm ci --legacy-peer-deps && npm run build",
+    "build": "cd client && rm -rf node_modules package-lock.json && npm install --force && npm run build",
     "start": "cd server && npm start",
     "install-server": "cd server && npm install"
-  },
-  "workspaces": [
-    "client",
-    "server"
-  ]
+  }
 }
