@@ -13,7 +13,19 @@ const app = express();
 
 app.use(
   cors({
-    origin: ["http://localhost:5173", "https://researchblogs.onrender.com"],
+    origin: function (origin, callback) {
+      // Allow requests with no origin (mobile apps, etc.)
+      if (!origin) return callback(null, true);
+      
+      // Allow localhost for development
+      if (origin.includes('localhost')) return callback(null, true);
+      
+      // Allow Render domains
+      if (origin.includes('.onrender.com')) return callback(null, true);
+      
+      // For production, allow same origin
+      callback(null, true);
+    },
     credentials: true,
   })
 );
