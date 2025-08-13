@@ -525,13 +525,18 @@ const SimpleHome = () => {
         {floatingParticles}
         <h1 className="hero-title">Welcome to ResearchBlog</h1>
         <p className="hero-subtitle">
-          A platform for researchers and academics
+          A modern platform for researchers, academics, and curious minds to
+          share insights, discoveries, and thought-provoking content with the
+          world.
         </p>
 
         {user ? (
           <p className="hero-user-greeting">Hello, {user.username}! 👋</p>
         ) : (
           <div className="hero-buttons">
+            <Link to="/ask" className="cta-button">
+              Try AI Assistant
+            </Link>
             <Link to="/login" className="cta-button">
               Login
             </Link>
@@ -634,10 +639,46 @@ const SimpleHome = () => {
             }}
           >
             <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>🤖</div>
-            <h3 style={{ marginBottom: "1rem", color: "#333" }}>AI-Powered</h3>
-            <p style={{ color: "#666", lineHeight: "1.6" }}>
-              Get AI assistance for your research
+            <h3 style={{ marginBottom: "1rem", color: "#333" }}>
+              AI-Powered Research
+            </h3>
+            <p
+              style={{
+                color: "#666",
+                lineHeight: "1.6",
+                marginBottom: "1.5rem",
+              }}
+            >
+              Get AI assistance for your research with real research paper
+              suggestions and intelligent insights
             </p>
+            <Link
+              to="/ask"
+              style={{
+                display: "inline-block",
+                background: "linear-gradient(135deg, #667eea, #764ba2)",
+                color: "white",
+                padding: "8px 16px",
+                borderRadius: "20px",
+                textDecoration: "none",
+                fontSize: "0.9rem",
+                fontWeight: "600",
+                transition: "all 0.3s ease",
+                boxShadow: "0 2px 10px rgba(102, 126, 234, 0.2)",
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.transform = "translateY(-2px)";
+                e.target.style.boxShadow =
+                  "0 4px 15px rgba(102, 126, 234, 0.3)";
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.transform = "translateY(0)";
+                e.target.style.boxShadow =
+                  "0 2px 10px rgba(102, 126, 234, 0.2)";
+              }}
+            >
+              Try AI Assistant →
+            </Link>
           </div>
         </div>
       </div>
@@ -846,13 +887,13 @@ const SimpleNavbar = () => {
           <Link to="/blogs" className="nav-link" style={navLinkStyle}>
             Blogs
           </Link>
+          <Link to="/ask" className="nav-link" style={navLinkStyle}>
+            Ask AI
+          </Link>
           {user ? (
             <>
               <Link to="/create" className="nav-link" style={navLinkStyle}>
                 Create Blog
-              </Link>
-              <Link to="/ask" className="nav-link" style={navLinkStyle}>
-                Ask AI
               </Link>
               <span
                 className="user-greeting"
@@ -1516,6 +1557,7 @@ const SimpleBlogDetail = () => {
 
 // Enhanced Ask AI Component with Research Papers and Similar Blogs
 const SimpleAskAI = () => {
+  const { user } = useAuth();
   const [question, setQuestion] = useState("");
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -1530,25 +1572,23 @@ const SimpleAskAI = () => {
     setResults(null);
 
     try {
+      // Get the token if user is logged in (optional)
       const token = localStorage.getItem("token");
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
       // Make multiple API calls to get comprehensive results
       const [aiResponse, searchResponse, relatedBlogsResponse] =
         await Promise.all([
           // Get AI answer
-          axios.post(
-            "/api/ask",
-            { question },
-            { headers: { Authorization: `Bearer ${token}` } }
-          ),
+          axios.post("/api/ask", { question }, { headers }),
           // Search for research papers/documents
           axios.get(`/api/search?q=${encodeURIComponent(question)}`, {
-            headers: { Authorization: `Bearer ${token}` },
+            headers,
           }),
           // Get related blogs
           axios
             .get(`/api/blogs/search?q=${encodeURIComponent(question)}`, {
-              headers: { Authorization: `Bearer ${token}` },
+              headers,
             })
             .catch(() => ({ data: [] })), // Fallback if this endpoint doesn't exist
         ]);
@@ -1577,6 +1617,48 @@ const SimpleAskAI = () => {
         >
           Research Assistant with AI
         </h1>
+
+        {!user && (
+          <div
+            style={{
+              background: "linear-gradient(135deg, #e0f2fe 0%, #f3e5f5 100%)",
+              padding: "1.5rem",
+              borderRadius: "8px",
+              marginBottom: "2rem",
+              textAlign: "center",
+              border: "1px solid #e1bee7",
+            }}
+          >
+            <p style={{ margin: "0 0 1rem", color: "#333", fontSize: "1rem" }}>
+              🔓 <strong>Try our AI assistant for free!</strong> No login
+              required.
+            </p>
+            <p style={{ margin: "0", color: "#666", fontSize: "0.9rem" }}>
+              For personalized features and to create blogs,{" "}
+              <Link
+                to="/register"
+                style={{
+                  color: "#667eea",
+                  textDecoration: "none",
+                  fontWeight: "600",
+                }}
+              >
+                sign up here
+              </Link>{" "}
+              or{" "}
+              <Link
+                to="/login"
+                style={{
+                  color: "#667eea",
+                  textDecoration: "none",
+                  fontWeight: "600",
+                }}
+              >
+                login
+              </Link>
+            </p>
+          </div>
+        )}
 
         <div
           style={{
@@ -1755,66 +1837,151 @@ const SimpleAskAI = () => {
                       <div
                         key={index}
                         style={{
-                          padding: "1rem",
+                          padding: "1.5rem",
                           border: "1px solid #e0e0e0",
-                          borderRadius: "6px",
+                          borderRadius: "8px",
                           background: "#f9f9f9",
+                          transition: "all 0.3s ease",
+                          position: "relative",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.target.style.boxShadow =
+                            "0 4px 15px rgba(0,0,0,0.1)";
+                          e.target.style.transform = "translateY(-2px)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.target.style.boxShadow = "none";
+                          e.target.style.transform = "translateY(0)";
                         }}
                       >
-                        <h4
-                          style={{
-                            color: "#2196F3",
-                            marginBottom: "0.5rem",
-                            fontSize: "16px",
-                          }}
-                        >
-                          {paper.title || `Research Paper ${index + 1}`}
-                        </h4>
-                        <p
-                          style={{
-                            color: "#666",
-                            fontSize: "14px",
-                            marginBottom: "0.5rem",
-                          }}
-                        >
-                          {paper.authors && `Authors: ${paper.authors}`}
-                        </p>
-                        <p
-                          style={{
-                            fontSize: "14px",
-                            lineHeight: "1.4",
-                            color: "#333",
-                          }}
-                        >
-                          {paper.abstract ||
-                            paper.summary ||
-                            paper.content?.substring(0, 200) + "..."}
-                        </p>
-                        {paper.url && (
-                          <a
-                            href={paper.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                        {/* Relevance Score Badge */}
+                        {paper.relevanceScore && (
+                          <div
+                            style={{
+                              position: "absolute",
+                              top: "1rem",
+                              right: "1rem",
+                              background:
+                                paper.relevanceScore > 0.7
+                                  ? "linear-gradient(135deg, #4CAF50, #45a049)"
+                                  : paper.relevanceScore > 0.4
+                                  ? "linear-gradient(135deg, #FF9800, #f57c00)"
+                                  : "linear-gradient(135deg, #9E9E9E, #757575)",
+                              color: "white",
+                              padding: "4px 8px",
+                              borderRadius: "12px",
+                              fontSize: "11px",
+                              fontWeight: "600",
+                              textShadow: "0 1px 2px rgba(0,0,0,0.2)",
+                            }}
+                          >
+                            {(paper.relevanceScore * 100).toFixed(0)}% match
+                          </div>
+                        )}
+
+                        <div style={{ paddingRight: "4rem" }}>
+                          <h4
                             style={{
                               color: "#2196F3",
-                              fontSize: "14px",
-                              textDecoration: "none",
+                              marginBottom: "0.75rem",
+                              fontSize: "16px",
+                              lineHeight: "1.3",
+                              fontWeight: "600",
                             }}
                           >
-                            📎 View Paper
-                          </a>
-                        )}
-                        {paper.doi && (
+                            {paper.title || `Research Paper ${index + 1}`}
+                          </h4>
+
+                          {/* Metadata Row */}
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: "1rem",
+                              marginBottom: "0.75rem",
+                              flexWrap: "wrap",
+                              fontSize: "13px",
+                              color: "#666",
+                            }}
+                          >
+                            {paper.authors && (
+                              <span>
+                                👥{" "}
+                                {paper.authors.length > 50
+                                  ? paper.authors.substring(0, 50) + "..."
+                                  : paper.authors}
+                              </span>
+                            )}
+                            {paper.year && (
+                              <span style={{ fontWeight: "500" }}>
+                                📅 {paper.year}
+                              </span>
+                            )}
+                            {paper.source && (
+                              <span
+                                style={{
+                                  background: "#e3f2fd",
+                                  padding: "2px 6px",
+                                  borderRadius: "4px",
+                                  color: "#1976d2",
+                                }}
+                              >
+                                📖 {paper.source}
+                              </span>
+                            )}
+                          </div>
+
                           <p
                             style={{
-                              fontSize: "12px",
-                              color: "#888",
-                              marginTop: "0.5rem",
+                              fontSize: "14px",
+                              lineHeight: "1.5",
+                              color: "#333",
+                              marginBottom: "1rem",
                             }}
                           >
-                            DOI: {paper.doi}
+                            {paper.abstract ||
+                              paper.summary ||
+                              paper.content?.substring(0, 200) + "..."}
                           </p>
-                        )}
+
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: "1rem",
+                              alignItems: "center",
+                              fontSize: "13px",
+                            }}
+                          >
+                            {paper.url && (
+                              <a
+                                href={paper.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  color: "#2196F3",
+                                  textDecoration: "none",
+                                  fontWeight: "500",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "4px",
+                                  transition: "color 0.3s ease",
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.target.style.color = "#1976d2";
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.target.style.color = "#2196F3";
+                                }}
+                              >
+                                📎 View Full Paper
+                              </a>
+                            )}
+                            {paper.doi && (
+                              <span style={{ color: "#888" }}>
+                                DOI: {paper.doi}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -2031,10 +2198,7 @@ function App() {
               path="/create"
               element={user ? <SimpleCreateBlog /> : <Navigate to="/login" />}
             />
-            <Route
-              path="/ask"
-              element={user ? <SimpleAskAI /> : <Navigate to="/login" />}
-            />
+            <Route path="/ask" element={<SimpleAskAI />} />
           </Routes>
         </div>
       </Router>
