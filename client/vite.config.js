@@ -11,11 +11,11 @@ export default defineConfig({
       output: {
         manualChunks: {
           // Split vendor chunks for better caching
-          react: ['react', 'react-dom'],
-          router: ['react-router-dom'],
-          ui: ['lucide-react'],
-          markdown: ['react-markdown', 'remark-gfm'],
-          http: ['axios']
+          react: ["react", "react-dom"],
+          router: ["react-router-dom"],
+          ui: ["lucide-react"],
+          markdown: ["react-markdown", "remark-gfm"],
+          http: ["axios"],
         },
       },
     },

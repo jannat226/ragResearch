@@ -7,6 +7,7 @@ const upload = require("../middleware/upload");
 
 // Public routes
 router.get("/", blogController.getBlogs);
+router.get("/search", blogController.searchBlogs);
 router.get("/:id", blogController.getBlogById);
 
 // Protected routes

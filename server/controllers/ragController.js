@@ -3,6 +3,7 @@ const Blog = require("../models/Blog");
 const { embedText } = require("../utils/embeddings");
 const { getDriver, dbSession } = require("../utils/neo4j");
 const { answerWithContext } = require("../utils/llm");
+const { searchResearchPapers } = require("../utils/scholarSearch");
 
 // GET /api/search?q=...&k=10
 exports.search = async (req, res) => {
@@ -34,9 +35,27 @@ exports.search = async (req, res) => {
     const ordered = ids
       .map((id) => blogs.find((b) => b._id.toString() === id))
       .filter(Boolean)
-      .map((b) => ({ ...b.toObject(), _score: scores[b._id.toString()] }));
+      .map((b) => ({
+        ...b.toObject(),
+        _score: scores[b._id.toString()],
+        // Clean up the response - remove internal IDs
+        _id: b._id.toString(),
+      }));
 
-    res.json(ordered);
+    // Get real research papers
+    const papersResult = await searchResearchPapers(q, 5);
+
+    res.json({
+      documents: ordered,
+      papers: papersResult.papers || [],
+      noPapersFound: papersResult.noPapersFound || false,
+      papersMessage: papersResult.message || null,
+      sources: ordered.map((blog) => ({
+        title: blog.title,
+        url: `/blogs/${blog._id}`,
+        description: blog.content?.substring(0, 150) + "...",
+      })),
+    });
   } catch (e) {
     console.error("Search failed:", e);
     res.status(500).json({ message: "Search failed" });
@@ -132,23 +151,102 @@ exports.ask = async (req, res) => {
     const result = await session.run(query, { k, embedding, blogId });
     await session.close();
 
+    // Store original context data for source tracking
+    const originalContexts = result.records.map((r) => r.get("chunk"));
+
+    // Check relevance threshold - if scores are too high (less relevant), it means no good matches
+    const RELEVANCE_THRESHOLD = 1.5; // Adjust this threshold as needed
+    const hasRelevantContexts =
+      originalContexts.length > 0 &&
+      originalContexts.some(
+        (context) =>
+          result.records
+            .find((r) => r.get("chunk").text === context.text)
+            ?.get("score") < RELEVANCE_THRESHOLD
+      );
+
     const contexts = result.records.map((r) => ({
-      ...r.get("chunk"),
+      text: r.get("chunk").text,
       score: r.get("score"),
+      // Remove blogId and chunkIndex from being passed to LLM
     }));
+
+    // Generate related papers and similar blogs for all queries
+    const papersResult = await searchResearchPapers(question, 4);
+
+    // Find similar blogs using search
+    const blogEmbedding = await embedText(question);
+    const blogSession = dbSession("READ");
+    const blogResult = await blogSession.run(
+      `CALL db.index.vector.queryNodes('blog_embedding', 5, $embedding)
+       YIELD node, score
+       RETURN node.blogId AS blogId, score
+       ORDER BY score ASC`,
+      { embedding: blogEmbedding }
+    );
+    await blogSession.close();
+
+    const blogIds = blogResult.records.map((r) => r.get("blogId"));
+    const blogScores = Object.fromEntries(
+      blogResult.records.map((r) => [r.get("blogId"), r.get("score")])
+    );
+
+    // Check if we have relevant blogs
+    const hasRelevantBlogs =
+      blogIds.length > 0 &&
+      Object.values(blogScores).some((score) => score < RELEVANCE_THRESHOLD);
+
+    // If no relevant contexts or blogs found, provide appropriate response
+    if (!hasRelevantContexts && !hasRelevantBlogs) {
+      const responseMessage = papersResult.noPapersFound
+        ? "I don't have any blogs or content on this specific topic yet, and I wasn't able to find any research papers on this topic either."
+        : "I don't have any blogs or content on this specific topic yet. However, I can suggest some research papers that might be relevant to your query.";
+
+      return res.json({
+        answer: responseMessage,
+        papers: papersResult.papers || [],
+        noPapersFound: papersResult.noPapersFound || false,
+        papersMessage: papersResult.message || null,
+        similarBlogs: [],
+        sources: [],
+        noRelevantContent: true,
+      });
+    }
 
     const { answer, usedContexts } = await answerWithContext(
       question,
       contexts
     );
 
-    // If asking from a specific blog page, return only the answer (no citations)
+    const similarBlogs = await Blog.find({ _id: { $in: blogIds } })
+      .populate("author", "username")
+      .select("title content createdAt author")
+      .limit(5)
+      .lean(); // Use lean() for better performance and cleaner objects
+
+    // Clean up similar blogs - remove internal references
+    const cleanSimilarBlogs = similarBlogs.map((blog) => ({
+      _id: blog._id.toString(),
+      title: blog.title,
+      content: blog.content,
+      createdAt: blog.createdAt,
+      author: blog.author,
+    }));
+
+    // If asking from a specific blog page, include papers and similar blogs
     if (blogId) {
-      return res.json({ answer });
+      return res.json({
+        answer,
+        papers: papersResult.papers || [],
+        noPapersFound: papersResult.noPapersFound || false,
+        papersMessage: papersResult.message || null,
+        similarBlogs: cleanSimilarBlogs.filter((blog) => blog._id !== blogId),
+      });
     }
 
-    // Sitewide ask: return sources with blog titles
-    const ids = Array.from(new Set(usedContexts.map((c) => c.blogId)));
+    // Sitewide ask: return sources with blog titles, papers, and similar blogs
+    // Use original contexts to get blog IDs for sources
+    const ids = Array.from(new Set(originalContexts.map((c) => c.blogId)));
     const metas = await Blog.find({ _id: { $in: ids } }, { title: 1 });
     const titleMap = Object.fromEntries(
       metas.map((m) => [m._id.toString(), m.title])
@@ -158,7 +256,14 @@ exports.ask = async (req, res) => {
       title: titleMap[id] || "Untitled",
     }));
 
-    res.json({ answer, sources });
+    res.json({
+      answer,
+      sources,
+      papers: papersResult.papers || [],
+      noPapersFound: papersResult.noPapersFound || false,
+      papersMessage: papersResult.message || null,
+      similarBlogs: cleanSimilarBlogs,
+    });
   } catch (e) {
     console.error("Ask failed:", e);
     res.status(500).json({ message: "Ask failed" });

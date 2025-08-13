@@ -1,5 +1,5 @@
 // client/src/App.jsx
-import React, { useState, useEffect, createContext, useContext } from "react";
+import React, { useState, useEffect } from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -7,6 +7,9 @@ import {
   Navigate,
 } from "react-router-dom";
 import axios from "axios";
+
+// Auth Context
+import { AuthContext } from "./contexts/AuthContext";
 
 // Components
 import Navbar from "./components/Navbar";
@@ -19,18 +22,6 @@ import CreateBlog from "./pages/CreateBlog";
 import SearchResults from "./pages/SearchResults";
 import AskAI from "./pages/AskAI";
 import "./App.css";
-
-// Create Auth Context
-const AuthContext = createContext();
-
-// Custom hook to use auth context
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
-  return context;
-};
 
 // Set up axios defaults
 const apiBase = import.meta.env.VITE_API_URL || ""; // empty = same-origin

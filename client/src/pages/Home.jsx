@@ -1,7 +1,7 @@
 // client/src/pages/Home.jsx
 import React from "react";
 import { Link } from "react-router-dom";
-import { useAuth } from "../App";
+import { useAuth } from "../contexts/AuthContext";
 import {
   BookOpen,
   PenTool,

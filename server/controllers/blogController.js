@@ -285,3 +285,28 @@ exports.deleteComment = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
+
+// Search blogs by text query
+exports.searchBlogs = async (req, res) => {
+  try {
+    const query = req.query.q || "";
+    if (!query.trim()) {
+      return res.json({ blogs: [] });
+    }
+
+    // Simple text search in title and content
+    const blogs = await Blog.find({
+      $or: [
+        { title: { $regex: query, $options: "i" } },
+        { content: { $regex: query, $options: "i" } },
+      ],
+    })
+      .populate("author", "username email")
+      .sort({ createdAt: -1 })
+      .limit(10);
+
+    res.json({ blogs });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
